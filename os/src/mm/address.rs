@@ -168,6 +168,14 @@ impl VirtPageNum {
     }
 }
 
+impl core::ops::Add<usize> for VirtPageNum {
+    type Output = VirtPageNum;
+
+    fn add(self, rhs: usize) -> Self::Output {
+        VirtPageNum(self.0 + rhs)
+    }
+}
+
 impl PhysAddr {
     ///Get mutable reference to `PhysAddr` value
     /// Get the mutable reference of physical address

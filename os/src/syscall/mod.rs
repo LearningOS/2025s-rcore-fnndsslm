@@ -31,6 +31,15 @@ mod process;
 use fs::*;
 use process::*;
 
+static  mut NUM_SYSCALL_WRITE:i32 = 0;
+static  mut NUM_SYSCALL_EXIT:i32 = 0;
+static  mut NUM_SYSCALL_YIELD:i32 = 0;
+static  mut NUM_SYSCALL_GET_TIME:i32 = 0;
+static  mut NUM_SYSCALL_TRACE:i32 = 0;
+static  mut NUM_SYSCALL_MMAP:i32 = 0;
+static  mut NUM_SYSCALL_MUNMAP:i32 = 0;
+static  mut NUM_SYSCALL_SBRK:i32 = 0;
+
 /// handle syscall exception with `syscall_id` and other arguments
 pub fn syscall(syscall_id: usize, args: [usize; 3]) -> isize {
     match syscall_id {

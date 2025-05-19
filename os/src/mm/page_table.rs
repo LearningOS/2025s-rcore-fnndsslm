@@ -133,6 +133,11 @@ impl PageTable {
         }
         result
     }
+
+    /// 检查给定虚拟页号是否已经被映射
+    pub fn query(&self, vpn: VirtPageNum) -> bool {
+        self.find_pte(vpn).filter(|pte| pte.is_valid()).is_some()
+    }
     /// set the map between virtual page number and physical page number
     #[allow(unused)]
     pub fn map(&mut self, vpn: VirtPageNum, ppn: PhysPageNum, flags: PTEFlags) {

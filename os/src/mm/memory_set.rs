@@ -271,7 +271,10 @@ pub struct MapArea {
     map_perm: MapPermission,
 }
 
+/// 表示一段连续的虚拟页区域及其映射关系
 impl MapArea {
+    /// 创建一个新的内存区域，从 `start_va` 到 `end_va`（半开区间），
+    /// 使用指定的映射类型和权限。
     pub fn new(
         start_va: VirtAddr,
         end_va: VirtAddr,
@@ -287,6 +290,8 @@ impl MapArea {
             map_perm,
         }
     }
+
+    /// 将一个虚拟页 `vpn` 映射到物理页，根据当前区域的映射类型和权限。
     pub fn map_one(&mut self, page_table: &mut PageTable, vpn: VirtPageNum) {
         let ppn: PhysPageNum;
         match self.map_type {
@@ -302,40 +307,47 @@ impl MapArea {
         let pte_flags = PTEFlags::from_bits(self.map_perm.bits).unwrap();
         page_table.map(vpn, ppn, pte_flags);
     }
-    #[allow(unused)]
+
+    /// 取消一个虚拟页 `vpn` 的映射。如果是 Framed 类型，则释放页帧。
     pub fn unmap_one(&mut self, page_table: &mut PageTable, vpn: VirtPageNum) {
         if self.map_type == MapType::Framed {
             self.data_frames.remove(&vpn);
         }
         page_table.unmap(vpn);
     }
+
+    /// 将当前虚拟页范围 `vpn_range` 内所有页映射到物理页。
     pub fn map(&mut self, page_table: &mut PageTable) {
         for vpn in self.vpn_range {
             self.map_one(page_table, vpn);
         }
     }
-    #[allow(unused)]
+
+    /// 取消当前虚拟页范围 `vpn_range` 内所有页的映射。
     pub fn unmap(&mut self, page_table: &mut PageTable) {
         for vpn in self.vpn_range {
             self.unmap_one(page_table, vpn);
         }
     }
-    #[allow(unused)]
+
+    /// 将当前区域的尾部缩小至 `new_end`（即释放 `[new_end, old_end)` 的映射）。
     pub fn shrink_to(&mut self, page_table: &mut PageTable, new_end: VirtPageNum) {
         for vpn in VPNRange::new(new_end, self.vpn_range.get_end()) {
             self.unmap_one(page_table, vpn)
         }
         self.vpn_range = VPNRange::new(self.vpn_range.get_start(), new_end);
     }
-    #[allow(unused)]
+
+    /// 将当前区域扩展至 `new_end`，即新增 `[old_end, new_end)` 区域并进行映射。
     pub fn append_to(&mut self, page_table: &mut PageTable, new_end: VirtPageNum) {
         for vpn in VPNRange::new(self.vpn_range.get_end(), new_end) {
             self.map_one(page_table, vpn)
         }
         self.vpn_range = VPNRange::new(self.vpn_range.get_start(), new_end);
     }
-    /// data: start-aligned but maybe with shorter length
-    /// assume that all frames were cleared before
+
+    /// 拷贝用户数据到当前区域（要求是 Framed 类型，且页帧已初始化为空）。
+    /// 只会拷贝 `data.len()` 字节，起始地址必须与区域起始对齐。
     pub fn copy_data(&mut self, page_table: &mut PageTable, data: &[u8]) {
         assert_eq!(self.map_type, MapType::Framed);
         let mut start: usize = 0;
@@ -358,12 +370,17 @@ impl MapArea {
     }
 }
 
+
 #[derive(Copy, Clone, PartialEq, Debug)]
 /// map type for memory set: identical or framed
+/// 映射类型
 pub enum MapType {
+    /// 恒等映射，虚拟页号与物理页号相同
     Identical,
+    /// 帧分配映射，为每个虚拟页分配一个新的物理页帧
     Framed,
 }
+
 
 bitflags! {
     /// map permission corresponding to that in pte: `R W X U`
