@@ -28,6 +28,23 @@ pub struct TaskControlBlock {
 
     /// Program break
     pub program_brk: usize,
+
+    ///
+    pub num_syscall_write:i32,
+    ///
+    pub num_syscall_exit:i32,
+    ///
+    pub num_syscall_yield:i32,
+    ///
+    pub num_syscall_get_time:i32,
+    ///
+    pub num_syscall_trace:i32,
+    ///
+    pub num_syscall_mmap:i32,
+    ///
+    pub num_syscall_munmap:i32,
+    ///
+    pub num_syscall_sbrk:i32,
 }
 
 impl TaskControlBlock {
@@ -38,6 +55,10 @@ impl TaskControlBlock {
     /// get the user token
     pub fn get_user_token(&self) -> usize {
         self.memory_set.token()
+    }
+    ///
+    pub fn get_ms(&mut self) -> &mut MemorySet {
+        &mut self.memory_set
     }
     /// Based on the elf info in program, build the contents of task in a new address space
     pub fn new(elf_data: &[u8], app_id: usize) -> Self {
@@ -63,6 +84,14 @@ impl TaskControlBlock {
             base_size: user_sp,
             heap_bottom: user_sp,
             program_brk: user_sp,
+            num_syscall_write:0,
+            num_syscall_exit:0,
+            num_syscall_yield:0,
+            num_syscall_get_time:0,
+            num_syscall_trace:0,
+            num_syscall_mmap:0,
+            num_syscall_munmap:0,
+            num_syscall_sbrk:0,
         };
         // prepare TrapContext in user space
         let trap_cx = task_control_block.get_trap_cx();

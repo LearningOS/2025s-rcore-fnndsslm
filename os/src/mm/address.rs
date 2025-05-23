@@ -2,6 +2,8 @@
 use super::PageTableEntry;
 use crate::config::{PAGE_SIZE, PAGE_SIZE_BITS};
 use core::fmt::{self, Debug, Formatter};
+use core::iter::Step;
+
 /// physical address
 const PA_WIDTH_SV39: usize = 56;
 const VA_WIDTH_SV39: usize = 39;
@@ -90,6 +92,25 @@ impl From<VirtAddr> for usize {
 impl From<VirtPageNum> for usize {
     fn from(v: VirtPageNum) -> Self {
         v.0
+    }
+}
+
+///step impl
+impl Step for VirtPageNum {
+    fn steps_between(start: &Self, end: &Self) -> Option<usize> {
+        if end.0 >= start.0 {
+            Some(end.0 - start.0)
+        } else {
+            None
+        }
+    }
+
+    fn forward_checked(start: Self, count: usize) -> Option<Self> {
+        start.0.checked_add(count).map(VirtPageNum)
+    }
+
+    fn backward_checked(start: Self, count: usize) -> Option<Self> {
+        start.0.checked_sub(count).map(VirtPageNum)
     }
 }
 /// virtual address impl

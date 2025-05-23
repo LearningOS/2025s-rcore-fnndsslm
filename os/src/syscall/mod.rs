@@ -27,30 +27,48 @@ const SYSCALL_TRACE: usize = 410;
 
 mod fs;
 mod process;
+use crate::task;
 
 use fs::*;
 use process::*;
 
-static  mut NUM_SYSCALL_WRITE:i32 = 0;
-static  mut NUM_SYSCALL_EXIT:i32 = 0;
-static  mut NUM_SYSCALL_YIELD:i32 = 0;
-static  mut NUM_SYSCALL_GET_TIME:i32 = 0;
-static  mut NUM_SYSCALL_TRACE:i32 = 0;
-static  mut NUM_SYSCALL_MMAP:i32 = 0;
-static  mut NUM_SYSCALL_MUNMAP:i32 = 0;
-static  mut NUM_SYSCALL_SBRK:i32 = 0;
-
 /// handle syscall exception with `syscall_id` and other arguments
 pub fn syscall(syscall_id: usize, args: [usize; 3]) -> isize {
+    let mut inner = task::TASK_MANAGER.get_inner().exclusive_access(); 
+    let current_task =  inner.get_task();
     match syscall_id {
-        SYSCALL_WRITE => sys_write(args[0], args[1] as *const u8, args[2]),
-        SYSCALL_EXIT => sys_exit(args[0] as i32),
-        SYSCALL_YIELD => sys_yield(),
-        SYSCALL_GET_TIME => sys_get_time(args[0] as *mut TimeVal, args[1]),
-        SYSCALL_TRACE => sys_trace(args[0], args[1], args[2]),
-        SYSCALL_MMAP => sys_mmap(args[0], args[1], args[2]),
-        SYSCALL_MUNMAP => sys_munmap(args[0], args[1]),
-        SYSCALL_SBRK => sys_sbrk(args[0] as i32),
+        SYSCALL_WRITE => {
+            current_task.num_syscall_write += 1;
+            sys_write(args[0], args[1] as *const u8, args[2])
+        },
+        SYSCALL_EXIT => {
+            current_task.num_syscall_exit += 1;
+            sys_exit(args[0] as i32)
+        },
+        SYSCALL_YIELD => {
+            current_task.num_syscall_yield += 1;
+            sys_yield()
+        },
+        SYSCALL_GET_TIME => {
+            current_task.num_syscall_get_time += 1;
+            sys_get_time(args[0] as *mut TimeVal, args[1])
+        },
+        SYSCALL_TRACE => {
+            current_task.num_syscall_trace += 1;
+            sys_trace(args[0], args[1], args[2])
+        },
+        SYSCALL_MMAP => {
+            current_task.num_syscall_mmap += 1;
+            sys_mmap(args[0], args[1], args[2])
+        },
+        SYSCALL_MUNMAP => {
+            current_task.num_syscall_munmap += 1;
+            sys_munmap(args[0], args[1])
+        },
+        SYSCALL_SBRK => {
+            current_task.num_syscall_sbrk += 1;
+            sys_sbrk(args[0] as i32)
+        },
         _ => panic!("Unsupported syscall_id: {}", syscall_id),
     }
 }

@@ -35,8 +35,10 @@ lazy_static! {
 }
 /// address space
 pub struct MemorySet {
-    page_table: PageTable,
-    areas: Vec<MapArea>,
+    ///
+    pub page_table: PageTable,
+    ///
+    pub areas: Vec<MapArea>,
 }
 
 impl MemorySet {
@@ -58,18 +60,25 @@ impl MemorySet {
         end_va: VirtAddr,
         permission: MapPermission,
     ) {
-        self.push(
+        let _ = self.push(
             MapArea::new(start_va, end_va, MapType::Framed, permission),
             None,
         );
     }
-    fn push(&mut self, mut map_area: MapArea, data: Option<&[u8]>) {
-        map_area.map(&mut self.page_table);
+    ///
+    pub fn push(&mut self, mut map_area: MapArea, data: Option<&[u8]>) -> Result<(), ()> {
+        for vpn in map_area.vpn_range {
+            if let Err(_) = map_area.map_one(&mut self.page_table, vpn) {
+                return Err(());
+            }
+        }
         if let Some(data) = data {
             map_area.copy_data(&mut self.page_table, data);
         }
         self.areas.push(map_area);
+        Ok(())
     }
+
     /// Mention that trampoline is not collected by areas.
     fn map_trampoline(&mut self) {
         self.page_table.map(
@@ -92,7 +101,7 @@ impl MemorySet {
             sbss_with_stack as usize, ebss as usize
         );
         info!("mapping .text section");
-        memory_set.push(
+        let _ = memory_set.push(
             MapArea::new(
                 (stext as usize).into(),
                 (etext as usize).into(),
@@ -102,7 +111,7 @@ impl MemorySet {
             None,
         );
         info!("mapping .rodata section");
-        memory_set.push(
+        let _ = memory_set.push(
             MapArea::new(
                 (srodata as usize).into(),
                 (erodata as usize).into(),
@@ -112,7 +121,7 @@ impl MemorySet {
             None,
         );
         info!("mapping .data section");
-        memory_set.push(
+        let _ = memory_set.push(
             MapArea::new(
                 (sdata as usize).into(),
                 (edata as usize).into(),
@@ -122,7 +131,7 @@ impl MemorySet {
             None,
         );
         info!("mapping .bss section");
-        memory_set.push(
+        let _ = memory_set.push(
             MapArea::new(
                 (sbss_with_stack as usize).into(),
                 (ebss as usize).into(),
@@ -132,7 +141,7 @@ impl MemorySet {
             None,
         );
         info!("mapping physical memory");
-        memory_set.push(
+        let _ = memory_set.push(
             MapArea::new(
                 (ekernel as usize).into(),
                 MEMORY_END.into(),
@@ -174,7 +183,7 @@ impl MemorySet {
                 }
                 let map_area = MapArea::new(start_va, end_va, MapType::Framed, map_perm);
                 max_end_vpn = map_area.vpn_range.get_end();
-                memory_set.push(
+                let _ = memory_set.push(
                     map_area,
                     Some(&elf.input[ph.offset() as usize..(ph.offset() + ph.file_size()) as usize]),
                 );
@@ -186,7 +195,7 @@ impl MemorySet {
         // guard page
         user_stack_bottom += PAGE_SIZE;
         let user_stack_top = user_stack_bottom + USER_STACK_SIZE;
-        memory_set.push(
+        let _ = memory_set.push(
             MapArea::new(
                 user_stack_bottom.into(),
                 user_stack_top.into(),
@@ -196,7 +205,7 @@ impl MemorySet {
             None,
         );
         // used in sbrk
-        memory_set.push(
+        let _ = memory_set.push(
             MapArea::new(
                 user_stack_top.into(),
                 user_stack_top.into(),
@@ -206,7 +215,7 @@ impl MemorySet {
             None,
         );
         // map TrapContext
-        memory_set.push(
+        let _ = memory_set.push(
             MapArea::new(
                 TRAP_CONTEXT_BASE.into(),
                 TRAMPOLINE.into(),
@@ -265,7 +274,8 @@ impl MemorySet {
 }
 /// map area structure, controls a contiguous piece of virtual memory
 pub struct MapArea {
-    vpn_range: VPNRange,
+    ///
+    pub vpn_range: VPNRange,
     data_frames: BTreeMap<VirtPageNum, FrameTracker>,
     map_type: MapType,
     map_perm: MapPermission,
@@ -292,20 +302,24 @@ impl MapArea {
     }
 
     /// 将一个虚拟页 `vpn` 映射到物理页，根据当前区域的映射类型和权限。
-    pub fn map_one(&mut self, page_table: &mut PageTable, vpn: VirtPageNum) {
+    pub fn map_one(&mut self, page_table: &mut PageTable, vpn: VirtPageNum) -> Result<(), ()> {
         let ppn: PhysPageNum;
         match self.map_type {
             MapType::Identical => {
                 ppn = PhysPageNum(vpn.0);
             }
             MapType::Framed => {
-                let frame = frame_alloc().unwrap();
-                ppn = frame.ppn;
-                self.data_frames.insert(vpn, frame);
+                if let Some(frame) = frame_alloc() {
+                    ppn = frame.ppn;
+                    self.data_frames.insert(vpn, frame);
+                } else {
+                    return Err(());
+                }
             }
         }
         let pte_flags = PTEFlags::from_bits(self.map_perm.bits).unwrap();
         page_table.map(vpn, ppn, pte_flags);
+        Ok(())
     }
 
     /// 取消一个虚拟页 `vpn` 的映射。如果是 Framed 类型，则释放页帧。
@@ -317,10 +331,13 @@ impl MapArea {
     }
 
     /// 将当前虚拟页范围 `vpn_range` 内所有页映射到物理页。
-    pub fn map(&mut self, page_table: &mut PageTable) {
+    pub fn map(&mut self, page_table: &mut PageTable) -> Result<(), ()> {
         for vpn in self.vpn_range {
-            self.map_one(page_table, vpn);
+            if let Err(_) = self.map_one(page_table, vpn) {
+                return Err(());
+            }
         }
+        Ok(())
     }
 
     /// 取消当前虚拟页范围 `vpn_range` 内所有页的映射。
@@ -341,7 +358,7 @@ impl MapArea {
     /// 将当前区域扩展至 `new_end`，即新增 `[old_end, new_end)` 区域并进行映射。
     pub fn append_to(&mut self, page_table: &mut PageTable, new_end: VirtPageNum) {
         for vpn in VPNRange::new(self.vpn_range.get_end(), new_end) {
-            self.map_one(page_table, vpn)
+            let _ = self.map_one(page_table, vpn);
         }
         self.vpn_range = VPNRange::new(self.vpn_range.get_start(), new_end);
     }

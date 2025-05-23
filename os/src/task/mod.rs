@@ -41,7 +41,7 @@ pub struct TaskManager {
 }
 
 /// The task manager inner in 'UPSafeCell'
-struct TaskManagerInner {
+pub struct TaskManagerInner {
     /// task list
     tasks: Vec<TaskControlBlock>,
     /// id of current `Running` task
@@ -133,6 +133,11 @@ impl TaskManager {
         inner.tasks[cur].change_program_brk(size)
     }
 
+    ///
+    pub fn get_inner(&self) -> &UPSafeCell<TaskManagerInner> {
+        &self.inner
+    }
+
     /// Switch current `Running` task to the task we have found,
     /// or there is no `Ready` task and we can exit with all applications completed
     fn run_next_task(&self) {
@@ -153,6 +158,13 @@ impl TaskManager {
             panic!("All applications completed!");
         }
     }
+}
+
+impl TaskManagerInner {
+    ///
+    pub fn get_task(&mut self) -> &mut TaskControlBlock {
+        &mut self.tasks[self.current_task]
+    }    
 }
 
 /// Run the first task in task list.
@@ -202,3 +214,4 @@ pub fn current_trap_cx() -> &'static mut TrapContext {
 pub fn change_program_brk(size: i32) -> Option<usize> {
     TASK_MANAGER.change_current_program_brk(size)
 }
+
